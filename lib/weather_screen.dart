@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:weather_app/additional_info_item.dart';
 import 'package:http/http.dart' as http;
 import 'hourly_forecast_item.dart';
@@ -14,7 +15,7 @@ class WeatherScreen extends StatefulWidget {
   State<WeatherScreen> createState() => _WeatherScreenState();
 }
 class _WeatherScreenState extends State<WeatherScreen> {
-
+late Future<Map<String,dynamic>> weather;
   Future<Map<String,dynamic>> getCurrentWeather() async {
     try{
           String cityName = "London";
@@ -31,6 +32,12 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    weather = getCurrentWeather();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -39,14 +46,18 @@ class _WeatherScreenState extends State<WeatherScreen> {
         ),),
         centerTitle: true,
         actions:  [
-          IconButton(onPressed: (){},
+          IconButton(onPressed: (){
+            setState(() {
+              weather = getCurrentWeather();
+            });
+          },
               icon: const Icon(Icons.refresh),
           ),
         ],
       ),
       body:
       FutureBuilder(
-        future: getCurrentWeather(),
+        future: weather,
         builder:(context, snapshot) {
           if(snapshot.connectionState == ConnectionState.waiting){
             return const Center(child: CircularProgressIndicator.adaptive());
@@ -55,7 +66,12 @@ class _WeatherScreenState extends State<WeatherScreen> {
             return Center(child: Text(snapshot.error.toString()));
           }
           final data = snapshot.data!;
-          final currentTemp = data['list'][0]['main']['temp'];
+          final weatherData = data['list'][0];
+          final currentTemp = weatherData['main']['temp'];
+          final currentSky = weatherData['weather'][0]['main'];
+          final currentPressure = weatherData['main']['pressure'];
+          final currentHumidity = weatherData['main']['humidity'];
+          final currentWindSpeed = weatherData['wind']['speed'];
 
 
           return Padding(
@@ -83,9 +99,11 @@ class _WeatherScreenState extends State<WeatherScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            const Icon(Icons.cloud,size: 64),
+                            currentSky == 'Clouds' || currentSky == 'Rain'
+                                ?Icon(Icons.cloud,size: 64)
+                                :Icon(Icons.sunny,size: 64),
                             const SizedBox(height: 16),
-                            const Text("Rain", style: TextStyle(
+                            Text(currentSky, style: TextStyle(
                               fontSize: 20,
                             ),)
                           ],
@@ -96,44 +114,30 @@ class _WeatherScreenState extends State<WeatherScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text("Weather Forecast", style: TextStyle(
+              const Text("Hourly Forecast", style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold
                 ),
               ),
               const SizedBox(height: 8),
-              const SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    HourlyForecastItem(
-                      time: "00:00",
-                      temperature: "301.22",
-                      icon: Icons.cloud,
-                    ),
-                    HourlyForecastItem(
-                      time: "03:00",
-                      temperature: "300.52",
-                      icon: Icons.sunny,
-                    ),
-                    HourlyForecastItem(
-                      time: "06:00",
-                      temperature: "302.22",
-                      icon: Icons.cloud,
-                    ),
-                    HourlyForecastItem(
-                      time: "09:00",
-                      temperature: "300.12",
-                      icon: Icons.sunny,
-                    ),
-                    HourlyForecastItem(
-                      time: "12:00",
-                      temperature: "304.12",
-                      icon: Icons.cloud,
-                    ),
-                  ],
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  itemCount: 5,
+                  scrollDirection: Axis.horizontal,
+                  itemBuilder: (context,index){
+                    final hourlyForecast = data['list'][index+1];
+                    final hourlySky = data['list'][index+1]['weather'][0]['main'];
+                    final hourlyTemp = hourlyForecast['main']['temp'].toString();
+                    final time = DateTime.parse(hourlyForecast['dt_txt']);
+                    return HourlyForecastItem(
+                        time: DateFormat.j().format(time),
+                        temperature: hourlyTemp,
+                        icon: hourlySky == 'Clouds' || hourlySky == 'Rain'? Icons.cloud:Icons.sunny);
+                  },
                 ),
               ),
+
               const SizedBox(height: 20),
               const Text("Additional Information", style: TextStyle(
                   fontSize: 24,
@@ -141,23 +145,23 @@ class _WeatherScreenState extends State<WeatherScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                  AdditionalInfoItem(
                    icon: Icons.water_drop,
                    label: "Humidity",
-                   value: "91",
+                   value: currentHumidity.toString(),
                  ),
                  AdditionalInfoItem(
                    icon: Icons.air,
                    label: "Wind Speed",
-                   value: "7.5",
+                   value: currentWindSpeed.toString(),
                  ),
                  AdditionalInfoItem(
                    icon: Icons.beach_access,
                    label: "Pressure",
-                   value: "1000",
+                   value: currentPressure.toString(),
                  ),
                 ],
               ),
